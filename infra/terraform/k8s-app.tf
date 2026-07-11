@@ -64,6 +64,7 @@ locals {
     "${local.k8s_path}/analytics-service/service.yaml",
     # Ingress
     "${local.k8s_path}/ingress.yaml",
+    "${local.k8s_path}/ingress-evaluate.yaml",
     # HPA — só evaluation (analytics é gerenciado pelo KEDA)
     "${local.k8s_path}/evaluation-service/hpa.yaml",
   ])
@@ -78,6 +79,19 @@ resource "kubectl_manifest" "app" {
     kubectl_manifest.external_secrets,
     helm_release.metrics_server,
     helm_release.nginx_ingress,
+  ]
+}
+
+# ── Bootstrap: registra SERVICE_API_KEY do evaluation-service no auth_db ─────
+# Roda como Job K8s durante o terraform apply.
+# Computa SHA-256 do SERVICE_API_KEY e insere na tabela api_keys do auth_db.
+# ON CONFLICT DO NOTHING garante idempotência em re-applies.
+resource "kubectl_manifest" "bootstrap_eval_key" {
+  yaml_body = file("${local.k8s_path}/bootstrap/bootstrap-eval-key.yaml")
+
+  depends_on = [
+    kubectl_manifest.app,
+    kubectl_manifest.external_secrets,
   ]
 }
 

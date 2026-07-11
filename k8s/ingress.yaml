@@ -37,15 +37,6 @@ spec:
                 port:
                   number: 8003
 
-          # evaluation-service: /evaluate
-          - path: /evaluate(/|$)(.*)
-            pathType: Prefix
-            backend:
-              service:
-                name: evaluation-service
-                port:
-                  number: 8004
-
           # health checks individuais
           - path: /health/auth(/|$)(.*)
             pathType: Prefix
