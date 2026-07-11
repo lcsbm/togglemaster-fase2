@@ -9,11 +9,12 @@ module "eks" {
   subnet_ids = module.vpc.private_subnets
 
   # Acesso público ao endpoint (kubectl funciona de qualquer lugar)
-  cluster_endpoint_public_access = true
+  cluster_endpoint_public_access           = true
+  enable_cluster_creator_admin_permissions = true
 
   eks_managed_node_groups = {
     workers = {
-      ami_type       = "AL2_x86_64"
+      ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = [var.eks_node_type]
 
       min_size     = var.eks_min_nodes
