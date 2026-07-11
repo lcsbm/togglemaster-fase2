@@ -1,0 +1,17 @@
+# Estado local do Terraform — NUNCA versionar
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+*.tfstate
+*.tfstate.*
+
+# Arquivo de variáveis com segredos — NUNCA versionar
+terraform.tfvars
+*.auto.tfvars
+
+# Planos que podem conter valores sensíveis
+*.tfplan
+
+# Script local de segredos — nunca versionar
+secrets.sh

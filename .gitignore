@@ -1,0 +1,35 @@
+# ─── Python ───────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.venv/
+venv/
+*.egg-info/
+
+# ─── Go ───────────────────────────────────────────────
+# binários compilados localmente (não usados — build via Docker)
+auth-service/auth-service
+evaluation-service/evaluation-service
+
+# ─── Terraform ────────────────────────────────────────
+# (regras detalhadas em infra/terraform/.gitignore)
+**/.terraform/
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/terraform.tfstate.*
+**/*.tfstate
+**/*.tfplan
+**/terraform.tfvars
+**/*.auto.tfvars
+**/secrets.sh
+
+# ─── Docker ───────────────────────────────────────────
+.docker/
+
+# ─── IDEs e SO ────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log

@@ -1,0 +1,17 @@
+# Copie para terraform.tfvars e preencha — NUNCA commite terraform.tfvars no Git
+
+aws_region        = "us-east-1"
+project           = "togglemaster"
+
+# Senhas e chaves — passe via variáveis de ambiente para não salvar em arquivo:
+# export TF_VAR_db_password='...'
+# export TF_VAR_master_key='...'
+# export TF_VAR_service_api_key='...'
+db_password       = "SUBSTITUIR"
+master_key        = "SUBSTITUIR"
+service_api_key   = "SUBSTITUIR"
+
+eks_node_type     = "t3.medium"
+eks_desired_nodes = 2
+eks_min_nodes     = 1
+eks_max_nodes     = 3

@@ -1,0 +1,11 @@
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: keda-aws-auth
+  namespace: togglemaster
+spec:
+  # Usa o IRSA (IAM Roles for Service Accounts) do EKS.
+  # O KEDA operator herda as permissões da role anotada no seu SA,
+  # sem precisar de credenciais AWS no cluster.
+  podIdentity:
+    provider: aws-eks

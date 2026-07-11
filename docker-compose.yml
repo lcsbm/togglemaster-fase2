@@ -1,0 +1,224 @@
+version: "3.9"
+
+# ──────────────────────────────────────────────
+#  ToggleMaster — Microsserviços (dev local)
+#  9 containers: 5 apps + 2 PG + 1 Redis + 1 LocalStack
+# ──────────────────────────────────────────────
+
+x-python-common: &python-common
+  restart: on-failure
+  networks:
+    - togglemaster
+
+services:
+
+  # ── 1. auth-service (Go) ──────────────────────
+  auth-service:
+    <<: *python-common
+    build: ./auth-service
+    container_name: auth-service
+    ports:
+      - "8001:8001"
+    environment:
+      PORT: "8001"
+      DATABASE_URL: "postgres://pguser:pgpassword@db-auth:5432/auth_db?sslmode=disable"
+      MASTER_KEY: "master_dev_key_local"
+    depends_on:
+      db-auth:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── 2. flag-service (Python) ─────────────────
+  flag-service:
+    <<: *python-common
+    build: ./flag-service
+    container_name: flag-service
+    ports:
+      - "8002:8002"
+    environment:
+      PORT: "8002"
+      DATABASE_URL: "postgresql://pguser:pgpassword@db-flags:5432/flags_db"
+      AUTH_SERVICE_URL: "http://auth-service:8001"
+    depends_on:
+      db-flags:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── 3. targeting-service (Python) ────────────
+  targeting-service:
+    <<: *python-common
+    build: ./targeting-service
+    container_name: targeting-service
+    ports:
+      - "8003:8003"
+    environment:
+      PORT: "8003"
+      DATABASE_URL: "postgresql://pguser:pgpassword@db-flags:5432/targeting_db"
+      AUTH_SERVICE_URL: "http://auth-service:8001"
+    depends_on:
+      db-flags:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── 4. evaluation-service (Go) ───────────────
+  evaluation-service:
+    <<: *python-common
+    build: ./evaluation-service
+    container_name: evaluation-service
+    ports:
+      - "8004:8004"
+    environment:
+      PORT: "8004"
+      REDIS_URL: "redis://redis:6379"
+      FLAG_SERVICE_URL: "http://flag-service:8002"
+      TARGETING_SERVICE_URL: "http://targeting-service:8003"
+      SERVICE_API_KEY: "tm_key_local_dev"
+      AWS_REGION: "us-east-1"
+      AWS_SQS_URL: "http://localstack:4566/000000000000/togglemaster-events"
+      AWS_ENDPOINT_URL: "http://localstack:4566"
+      AWS_ACCESS_KEY_ID: "test"
+      AWS_SECRET_ACCESS_KEY: "test"
+    depends_on:
+      redis:
+        condition: service_healthy
+      flag-service:
+        condition: service_healthy
+      targeting-service:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8004/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── 5. analytics-service (Python) ────────────
+  analytics-service:
+    <<: *python-common
+    build: ./analytics-service
+    container_name: analytics-service
+    ports:
+      - "8005:8005"
+    environment:
+      PORT: "8005"
+      AWS_REGION: "us-east-1"
+      AWS_SQS_URL: "http://localstack:4566/000000000000/togglemaster-events"
+      AWS_DYNAMODB_TABLE: "analytics-events"
+      AWS_ENDPOINT_URL: "http://localstack:4566"
+      AWS_ACCESS_KEY_ID: "test"
+      AWS_SECRET_ACCESS_KEY: "test"
+    depends_on:
+      localstack:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8005/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ──────────────────────────────────────────────
+  #  INFRAESTRUTURA (4 containers)
+  # ──────────────────────────────────────────────
+
+  # ── 6. PostgreSQL — auth-service ─────────────
+  db-auth:
+    image: postgres:15-alpine
+    container_name: db-auth
+    networks:
+      - togglemaster
+    environment:
+      POSTGRES_USER: pguser
+      POSTGRES_PASSWORD: pgpassword
+      POSTGRES_DB: auth_db
+    volumes:
+      - db-auth-data:/var/lib/postgresql/data
+      - ./infra/init-auth-db.sh:/docker-entrypoint-initdb.d/01-init.sh
+      - ./auth-service/db/init.sql:/docker-entrypoint-initdb.d/auth-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pguser -d auth_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── 7. PostgreSQL — flag + targeting (2 DBs) ─
+  db-flags:
+    image: postgres:15-alpine
+    container_name: db-flags
+    networks:
+      - togglemaster
+    environment:
+      POSTGRES_USER: pguser
+      POSTGRES_PASSWORD: pgpassword
+      POSTGRES_DB: postgres
+    volumes:
+      - db-flags-data:/var/lib/postgresql/data
+      - ./infra/init-flags-db.sh:/docker-entrypoint-initdb.d/01-init.sh
+      - ./flag-service/db/init.sql:/docker-entrypoint-initdb.d/flags-schema.sql
+      - ./targeting-service/db/init.sql:/docker-entrypoint-initdb.d/targeting-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pguser -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── 8. Redis — evaluation-service ────────────
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    networks:
+      - togglemaster
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── 9. LocalStack — SQS + DynamoDB ───────────
+  localstack:
+    image: localstack/localstack:3
+    container_name: localstack
+    networks:
+      - togglemaster
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: sqs,dynamodb
+      DEFAULT_REGION: us-east-1
+      AWS_DEFAULT_REGION: us-east-1
+    volumes:
+      - ./infra/init-localstack.sh:/etc/localstack/init/ready.d/init.sh
+      - localstack-data:/var/lib/localstack
+    healthcheck:
+      test: ["CMD", "awslocal", "sqs", "list-queues"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+networks:
+  togglemaster:
+    driver: bridge
+
+volumes:
+  db-auth-data:
+  db-flags-data:
+  localstack-data:

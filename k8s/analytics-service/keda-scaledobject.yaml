@@ -1,0 +1,28 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: analytics-service-scaledobject
+  namespace: togglemaster
+spec:
+  scaleTargetRef:
+    name: analytics-service
+
+  # Verifica a fila a cada 30s
+  pollingInterval: 30
+  # Aguarda 5 min sem mensagens antes de reduzir réplicas
+  cooldownPeriod: 300
+
+  # KEDA permite escalar até zero — pods dormem quando fila está vazia
+  minReplicaCount: 0
+  maxReplicaCount: 5
+
+  triggers:
+    - type: aws-sqs-queue
+      authenticationRef:
+        name: keda-aws-auth
+      metadata:
+        # Valor injetado pelo Terraform via templatefile() — não edite manualmente
+        queueURL: ${sqs_url}
+        # Número de mensagens por réplica antes de escalar
+        queueLength: "5"
+        awsRegion: us-east-1
