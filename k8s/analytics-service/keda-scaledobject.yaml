@@ -18,11 +18,11 @@ spec:
 
   triggers:
     - type: aws-sqs-queue
-      authenticationRef:
-        name: keda-aws-auth
       metadata:
         # Valor injetado pelo Terraform via templatefile() — não edite manualmente
         queueURL: ${sqs_url}
         # Número de mensagens por réplica antes de escalar
         queueLength: "5"
         awsRegion: us-east-1
+        # Usa o instance profile do nó (sem credenciais no cluster)
+        identityOwner: operator

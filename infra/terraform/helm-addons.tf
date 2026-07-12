@@ -48,12 +48,8 @@ resource "helm_release" "keda" {
   create_namespace = true
   version          = "2.14.0"
 
-  # Anota o ServiceAccount do KEDA operator com a role IRSA
-  # para que ele possa ler a profundidade da fila SQS sem credenciais hardcoded
-  set {
-    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = module.keda_irsa.iam_role_arn
-  }
+  # KEDA usa o instance profile do nó (node_aws_services policy)
+  # para ler a profundidade da fila SQS — sem IRSA, sem credenciais no cluster.
 
-  depends_on = [module.eks, module.keda_irsa]
+  depends_on = [module.eks]
 }
